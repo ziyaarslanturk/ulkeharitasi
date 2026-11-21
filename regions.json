@@ -1,0 +1,15 @@
+{
+  "surum": 1,
+  "guncelleme": "2026-11-21T19:49:10Z",
+  "bolgeler": [
+    {
+      "id": "turkey",
+      "ad": "Türkiye",
+      "dosya": "turkey.map",
+      "boyut": 594373764,
+      "sha256": "419169f2449a783806b3a7beae022773afc0c3e1c4ce9ea37223b2d1937bb84a",
+      "url": "https://github.com/ziyaarslanturk/ulkeharitasi/releases/download/haritalar/turkey.map",
+      "guncelleme": "2026-11-21T19:49:00Z"
+    }
+  ]
+}
