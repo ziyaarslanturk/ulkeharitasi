@@ -1,2 +1,0 @@
-# ulkeharitasi
-ülkelerin çevrimdışı haritası
