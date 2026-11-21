@@ -1,0 +1,2 @@
+# -lkeharitas-
+ülkelerin çevrimdışı haritası
