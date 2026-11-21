@@ -1,1 +1,91 @@
+name: Harita üret
 
+on:
+  workflow_dispatch:
+    inputs:
+      ulke:
+        description: "Bölge kimliği (bolgeler.json içindeki id) veya hepsi"
+        default: "turkey"
+  schedule:
+    - cron: "0 3 1 * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: harita-uret
+  cancel-in-progress: false
+
+jobs:
+  liste:
+    runs-on: ubuntu-latest
+    outputs:
+      ids: ${{ steps.l.outputs.ids }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: l
+        env:
+          HEDEF: ${{ inputs.ulke || 'hepsi' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(jq -c --arg s "$HEDEF" 'if $s=="hepsi" then [.[].id] else [.[]|select(.id==$s)|.id] end' bolgeler.json)
+          if [ "$ids" = "[]" ]; then
+            echo "Bölge bulunamadı: $HEDEF"; exit 1
+          fi
+          echo "ids=$ids" >> "$GITHUB_OUTPUT"
+          gh release view haritalar >/dev/null 2>&1 || \
+            gh release create haritalar --title "Harita dosyaları" \
+              --notes "Harita verisi (c) OpenStreetMap katılımcıları (ODbL). Mapsforge .map biçimi."
+
+  uret:
+    needs: liste
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        id: ${{ fromJson(needs.liste.outputs.ids) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Haritayı üret ve Release'e yükle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/uret.sh "${{ matrix.id }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: meta-${{ matrix.id }}
+          path: meta/${{ matrix.id }}.json
+
+  birlestir:
+    needs: uret
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: meta-*
+          merge-multiple: true
+          path: yeni
+      - name: regions.json güncelle
+        run: |
+          shopt -s nullglob
+          files=(yeni/*.json)
+          if [ ${#files[@]} -eq 0 ]; then echo "Yeni dosya yok"; exit 0; fi
+          [ -f regions.json ] || echo '{"surum":1,"bolgeler":[]}' > regions.json
+          jq -s --arg t "$(date -u +%FT%TZ)" '
+            .[0] as $eski | .[1:] as $yeni |
+            {surum:1, guncelleme:$t,
+             bolgeler: (($eski.bolgeler + $yeni) | group_by(.id) | map(last) | sort_by(.id))}
+          ' regions.json "${files[@]}" > r.tmp
+          mv r.tmp regions.json
+          git config user.name "harita-bot"
+          git config user.email "harita-bot@users.noreply.github.com"
+          git add regions.json
+          git diff --cached --quiet || git commit -m "regions.json güncellendi"
+          git push
