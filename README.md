@@ -1,2 +1,2 @@
-# -lkeharitas-
+# ulkeharitasi
 ülkelerin çevrimdışı haritası
